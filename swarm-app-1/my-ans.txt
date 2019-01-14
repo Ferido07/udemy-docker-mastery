@@ -1,0 +1,30 @@
+swarm with node1 manager, node2 manager, node3 worker
+
+docker network create --driver overlay frontend
+docker network create --driver overlay backend
+
+$ docker service create --name redis --network frontend redis:alpine
+$ docker service create --name db --network backend --mount type=volume,source=db-data,target=/var/lib/postgresql/data --constraint 'node.role == manager' postgres:9.4
+$ docker service create --name vote --network frontend -p 5000:80 --replicas 2 dockersamples/examplevotingapp_vote:before
+$ docker service create --name result --network backend -p 5001:80 dockersamples/examplevotingapp_result:before
+$ docker service create --name worker --network frontend --network backend --constraint 'node.role == manager' dockersamples/examplevotingapp_worker
+$ docker service create --name visualizer -p 8080:8080 --mount type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock --constraint 'node.role == manager' dockersamples/visualizer:stable
+
+
+## Answer that didn't work with different combination and changes ##
+##the problem was due to nature of web sockets requiring constant unchanging
+connection to a destination host. Spo the worker service was constantly failing
+after i tried the example with docker stack i found out the probalem could 
+likely be solved with placing constraint on worker and db services and hence
+it turned out to work that way and as a precaution is deployed the services in 
+the order they appear in the stack file. 
+Note: the docker-stack.yml file is that published by bret fisher on October 30,2018.
+
+tried with and without docker volume create db-data
+
+docker service create --name vote --network frontend -p 80:80 --replicas 2 dockersamples/examplevotingapp_vote:before
+docker service create --name redis --network frontend redis:3.2
+docker service create --name db --network backend --mount type=volume,source=db-data,target=/var/lib/postgresql/data postgres:9.4
+docker service create --name result --network backend -p 5001:80 dockersamples/examplevotingapp_result:before
+docker service create --name worker --network frontend --network backend --constraint 'node.role == manager' dockersamples/examplevotingapp_worker
+docker service create --name visualizer -p 8080:8080 --mount type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock --constraint 'node.role == manager' dockersamples/visualizer:stable
